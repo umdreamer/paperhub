@@ -80,6 +80,47 @@ class AppControllerTests(unittest.TestCase):
             with open_store(database) as db:
                 self.assertEqual(db.execute("SELECT COUNT(*) FROM asset").fetchone()[0], 0)
 
+    def test_moved_file_is_marked_missing_without_losing_old_hash(self):
+        from paperhub.app import run_scan
+
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            library = base / "library"
+            other = base / "other"
+            library.mkdir()
+            other.mkdir()
+            source = library / "paper.pdf"
+            source.write_bytes(b"paper")
+            (other / "book.epub").write_bytes(b"book")
+            database = base / "index.sqlite3"
+            run_scan(library, database)
+            run_scan(other, database)
+            with open_store(database) as db:
+                old_id, old_hash = db.execute(
+                    "SELECT id, sha256 FROM asset WHERE path = ?", (str(source),)
+                ).fetchone()
+            moved = other / "moved.pdf"
+            source.rename(moved)
+            _, result = run_scan(library, database)
+            self.assertEqual(getattr(result, "missing", 0), 1)
+            with open_store(database) as db:
+                self.assertEqual(
+                    db.execute("SELECT id, sha256, status FROM asset WHERE path = ?", (str(source),)).fetchone(),
+                    (old_id, old_hash, "missing"),
+                )
+                self.assertNotEqual(
+                    db.execute("SELECT status FROM asset WHERE path = ?", (str(other / "book.epub"),)).fetchone()[0],
+                    "missing",
+                )
+            moved.rename(source)
+            _, restored = run_scan(library, database)
+            self.assertEqual(getattr(restored, "missing", 0), 0)
+            with open_store(database) as db:
+                self.assertEqual(
+                    db.execute("SELECT id, status FROM asset WHERE path = ?", (str(source),)).fetchone(),
+                    (old_id, "present"),
+                )
+
 
 if __name__ == "__main__":
     unittest.main()
