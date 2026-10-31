@@ -5,13 +5,22 @@ import uuid
 from pathlib import Path
 from typing import Union
 
+PAPERHUB_APPLICATION_ID = 0x50485542
+
 
 def open_store(path: Union[str, Path]) -> sqlite3.Connection:
     """Open an index and create its initial schema without replacing existing data."""
     db = sqlite3.connect(path)
-    db.execute("PRAGMA foreign_keys = ON")
-    db.executescript(
-        """
+    try:
+        application_id = db.execute("PRAGMA application_id").fetchone()[0]
+        existing_tables = db.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+        ).fetchall()
+        if application_id != PAPERHUB_APPLICATION_ID and (application_id != 0 or existing_tables):
+            raise ValueError("selected SQLite file is not a PaperHub index")
+        db.execute("PRAGMA foreign_keys = ON")
+        db.executescript(
+            """BEGIN;
         CREATE TABLE IF NOT EXISTS work (
             id TEXT PRIMARY KEY,
             kind TEXT NOT NULL,
@@ -45,8 +54,14 @@ def open_store(path: Union[str, Path]) -> sqlite3.Connection:
             attachment_key TEXT,
             PRIMARY KEY (library_id, item_key)
         );
+        PRAGMA application_id = 1346917698;
+        COMMIT;
         """
-    )
+        )
+    except Exception:
+        db.rollback()
+        db.close()
+        raise
     return db
 
 
