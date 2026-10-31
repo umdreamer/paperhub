@@ -20,6 +20,12 @@ class FileSnapshot:
     error: Optional[str] = None
 
 
+@dataclass(frozen=True)
+class ScanReport:
+    items: List[FileSnapshot]
+    skipped_unsupported: int
+
+
 def _fingerprint(path: Path) -> FileSnapshot:
     try:
         before = path.stat()
@@ -43,16 +49,26 @@ def _fingerprint(path: Path) -> FileSnapshot:
 
 def scan_files(root: Path) -> List[FileSnapshot]:
     """Hash supported regular files under root without changing them."""
+    return scan_directory(root).items
+
+
+def scan_directory(root: Path) -> ScanReport:
+    """Return supported file snapshots and the count of other regular files."""
     root = Path(root)
     if not root.is_dir() or root.is_symlink():
         raise ValueError("scan root must be a directory, not a symlink")
     items = []
+    skipped_unsupported = 0
     for directory, dirs, files in os.walk(root, followlinks=False):
         dirs[:] = sorted(name for name in dirs if not (Path(directory) / name).is_symlink())
         for name in sorted(files):
             path = Path(directory) / name
-            if path.suffix.lower() not in SUPPORTED_SUFFIXES or path.is_symlink():
+            if path.is_symlink():
                 continue
-            if path.is_file():
-                items.append(_fingerprint(path))
-    return items
+            if not path.is_file():
+                continue
+            if path.suffix.lower() not in SUPPORTED_SUFFIXES:
+                skipped_unsupported += 1
+                continue
+            items.append(_fingerprint(path))
+    return ScanReport(items, skipped_unsupported)
