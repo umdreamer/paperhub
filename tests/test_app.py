@@ -2,6 +2,7 @@ import tempfile
 import unittest
 import subprocess
 import sys
+from unittest.mock import patch
 from pathlib import Path
 
 from paperhub.store import open_store
@@ -56,6 +57,28 @@ class AppControllerTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     run_scan(blank, database)
             self.assertFalse(database.exists())
+
+    def test_file_changed_after_scan_is_not_indexed_with_old_hash(self):
+        from paperhub.app import run_scan
+        from paperhub.scan import scan_directory
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "library"
+            root.mkdir()
+            target = root / "paper.pdf"
+            target.write_bytes(b"original")
+            database = Path(directory) / "index.sqlite3"
+
+            def change_after_scan(selected_root):
+                report = scan_directory(selected_root)
+                target.write_bytes(b"changed after scan")
+                return report
+
+            with patch("paperhub.app.scan_directory", side_effect=change_after_scan):
+                _, result = run_scan(root, database)
+            self.assertEqual(result.retry, 1)
+            with open_store(database) as db:
+                self.assertEqual(db.execute("SELECT COUNT(*) FROM asset").fetchone()[0], 0)
 
 
 if __name__ == "__main__":
