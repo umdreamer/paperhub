@@ -89,9 +89,13 @@ class MainWindow(QMainWindow):
             self.database_edit.setText(selected)
 
     def start_scan(self):
-        library = Path(self.library_edit.text().strip())
+        library_text = self.library_edit.text().strip()
         database_text = self.database_edit.text().strip()
-        if not library.is_dir() or library.is_symlink() or not database_text:
+        if not library_text or not database_text:
+            self.status_label.setText("错误：请选择有效资料目录和 SQLite 索引文件。")
+            return
+        library = Path(library_text)
+        if not library.is_dir() or library.is_symlink():
             self.status_label.setText("错误：请选择有效资料目录和 SQLite 索引文件。")
             return
         database = Path(database_text)
