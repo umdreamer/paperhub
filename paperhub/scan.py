@@ -66,7 +66,10 @@ def scan_directory(root: Path) -> ScanReport:
         raise ValueError("scan root must be a directory, not a symlink")
     items = []
     skipped_unsupported = 0
-    for directory, dirs, files in os.walk(root, followlinks=False):
+    def raise_walk_error(error):
+        raise error
+
+    for directory, dirs, files in os.walk(root, followlinks=False, onerror=raise_walk_error):
         dirs[:] = sorted(name for name in dirs if not (Path(directory) / name).is_symlink())
         for name in sorted(files):
             path = Path(directory) / name
