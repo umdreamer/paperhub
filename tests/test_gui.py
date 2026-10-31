@@ -52,3 +52,15 @@ class GuiTests(unittest.TestCase):
             self.assertIn("错误", window.status_label.text())
             self.assertFalse(database.exists())
             window.close()
+
+    def test_blank_directory_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            window = self._window()
+            database = Path(directory) / "index.sqlite3"
+            window.library_edit.setText("   ")
+            window.database_edit.setText(str(database))
+            window.scan_button.click()
+            self.app.processEvents()
+            self.assertIn("错误", window.status_label.text())
+            self.assertFalse(database.exists())
+            window.close()
