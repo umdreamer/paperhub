@@ -141,6 +141,13 @@ class MainWindow(QMainWindow):
         self._worker = None
         self._thread = None
 
+    def closeEvent(self, event):
+        if self._thread is not None and self._thread.isRunning():
+            self.status_label.setText("正在扫描，请等待完成后关闭窗口。")
+            event.ignore()
+            return
+        super().closeEvent(event)
+
 
 def launch_gui(library=None, database=None):
     app = QApplication.instance() or QApplication([])
