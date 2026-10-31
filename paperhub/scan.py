@@ -18,6 +18,9 @@ class FileSnapshot:
     md5: Optional[str]
     sha256: Optional[str]
     error: Optional[str] = None
+    mtime_ns: Optional[int] = None
+    inode: Optional[int] = None
+    device: Optional[int] = None
 
 
 @dataclass(frozen=True)
@@ -36,13 +39,17 @@ def _fingerprint(path: Path) -> FileSnapshot:
                 md5.update(chunk)
                 sha256.update(chunk)
         after = path.stat()
-        if (before.st_size, before.st_mtime_ns, before.st_ino) != (
+        if (before.st_size, before.st_mtime_ns, before.st_ino, before.st_dev) != (
             after.st_size,
             after.st_mtime_ns,
             after.st_ino,
+            after.st_dev,
         ):
             return FileSnapshot(path, "changed", after.st_size, None, None)
-        return FileSnapshot(path, "stable", after.st_size, md5.hexdigest(), sha256.hexdigest())
+        return FileSnapshot(
+            path, "stable", after.st_size, md5.hexdigest(), sha256.hexdigest(),
+            mtime_ns=after.st_mtime_ns, inode=after.st_ino, device=after.st_dev,
+        )
     except OSError as exc:
         return FileSnapshot(path, "error", None, None, None, str(exc))
 
