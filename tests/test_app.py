@@ -1,11 +1,23 @@
 import tempfile
 import unittest
+import subprocess
+import sys
 from pathlib import Path
 
 from paperhub.store import open_store
 
 
 class AppControllerTests(unittest.TestCase):
+    def test_module_help_explains_manual_scan(self):
+        result = subprocess.run(
+            [sys.executable, "-m", "paperhub", "--help"],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("PaperHub", result.stdout)
+        self.assertIn("--library", result.stdout)
+
     def _run_scan(self):
         try:
             from paperhub.app import run_scan
