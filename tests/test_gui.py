@@ -104,3 +104,21 @@ class GuiTests(unittest.TestCase):
                 self.assertFalse(window.isVisible())
             finally:
                 release.set()
+
+    def test_changed_file_row_is_labeled_as_conflict(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "paper.pdf"
+            target.write_bytes(b"first")
+            window = self._window()
+            window.library_edit.setText(directory)
+            window.database_edit.setText(str(Path(directory) / "index.sqlite3"))
+            for content in (b"first", b"changed content"):
+                target.write_bytes(content)
+                window.scan_button.click()
+                deadline = time.monotonic() + 5
+                while not window.scan_button.isEnabled() and time.monotonic() < deadline:
+                    self.app.processEvents()
+                    time.sleep(0.01)
+            self.assertIn("冲突", window.table.item(0, 1).text())
+            self.assertIn("本次扫描", window.table.horizontalHeaderItem(3).text())
+            window.close()
