@@ -1,6 +1,7 @@
 import tempfile
 import unittest
 import sqlite3
+import hashlib
 from pathlib import Path
 
 
@@ -65,6 +66,31 @@ class StoreTests(unittest.TestCase):
                 add_asset(db, "/archive/book.pdf", 3, "a" * 32, "b" * 64)
                 self.assertIsNone(db.execute("SELECT title FROM work WHERE id = ?", (work,)).fetchone()[0])
                 self.assertEqual(db.execute("SELECT COUNT(*) FROM asset").fetchone()[0], 2)
+
+    def test_paperhub_database_has_nonzero_application_id(self):
+        from paperhub.store import open_store
+
+        with tempfile.TemporaryDirectory() as directory:
+            with open_store(Path(directory) / "index.sqlite3") as db:
+                self.assertNotEqual(db.execute("PRAGMA application_id").fetchone()[0], 0)
+
+    def test_unrelated_existing_database_is_not_modified(self):
+        from paperhub.store import open_store
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "other.sqlite3"
+            with sqlite3.connect(path) as db:
+                db.execute("CREATE TABLE private_data (value TEXT)")
+                db.execute("INSERT INTO private_data VALUES ('keep')")
+            before = hashlib.sha256(path.read_bytes()).hexdigest()
+            with self.assertRaises(ValueError):
+                open_store(path)
+            self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), before)
+            with sqlite3.connect(path) as db:
+                self.assertEqual(db.execute("SELECT value FROM private_data").fetchone()[0], "keep")
+                self.assertIsNone(
+                    db.execute("SELECT name FROM sqlite_master WHERE name = 'asset'").fetchone()
+                )
 
 
 if __name__ == "__main__":
