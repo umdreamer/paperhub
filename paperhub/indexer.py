@@ -1,6 +1,7 @@
 """Incremental, non-destructive transfer of scan results into SQLite."""
 
 from dataclasses import dataclass
+import stat
 
 from paperhub.scan import ScanReport
 from paperhub.store import add_asset
@@ -20,6 +21,16 @@ def apply_scan(db, report: ScanReport) -> IndexResult:
     with db:
         for item in report.items:
             if item.status != "stable":
+                retry += 1
+                continue
+            try:
+                current_stat = item.path.lstat()
+            except OSError:
+                retry += 1
+                continue
+            if not stat.S_ISREG(current_stat.st_mode) or (
+                current_stat.st_size, current_stat.st_mtime_ns, current_stat.st_ino, current_stat.st_dev
+            ) != (item.size, item.mtime_ns, item.inode, item.device):
                 retry += 1
                 continue
             previous = db.execute(
