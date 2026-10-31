@@ -127,9 +127,9 @@ class MainWindow(QMainWindow):
                 self.table.setItem(row, column, QTableWidgetItem(value))
         self.table.setUpdatesEnabled(True)
         self.status_label.setText(
-            f"新增 {result.added} · 未变 {result.unchanged} · 冲突 {result.conflicts} · 待重试 {result.retry} · 不支持 {report.skipped_unsupported}"
+            f"新增 {result.added} · 未变 {result.unchanged} · 缺失 {result.missing} · 冲突 {result.conflicts} · 待重试 {result.retry} · 不支持 {report.skipped_unsupported}"
         )
-        self.status_label.setStyleSheet("color: #b00020;" if result.conflicts else "")
+        self.status_label.setStyleSheet("color: #b00020;" if result.conflicts or result.missing else "")
 
     @Slot(str)
     def _show_error(self, message):
