@@ -72,6 +72,19 @@ class ScanTests(unittest.TestCase):
             self.assertEqual(items[0].status, "changed")
             self.assertIsNone(items[0].md5)
 
+    def test_directory_read_error_is_not_reported_as_success(self):
+        from paperhub.scan import scan_directory
+
+        with tempfile.TemporaryDirectory() as directory:
+            def failing_walk(*_args, **kwargs):
+                if kwargs.get("onerror"):
+                    kwargs["onerror"](PermissionError("blocked subdirectory"))
+                return iter(())
+
+            with patch("paperhub.scan.os.walk", side_effect=failing_walk):
+                with self.assertRaisesRegex(PermissionError, "blocked subdirectory"):
+                    scan_directory(Path(directory))
+
 
 if __name__ == "__main__":
     unittest.main()
