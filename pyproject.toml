@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "paperhub-local"
+version = "0.1.0"
+description = "Local research-material inventory with a Qt desktop interface"
+requires-python = ">=3.9"
+dependencies = ["PySide6>=6.6,<7"]
+
+[tool.setuptools.packages.find]
+include = ["paperhub*"]
+
+[project.scripts]
+paperhub = "paperhub.__main__:main"
