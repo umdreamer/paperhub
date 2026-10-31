@@ -27,6 +27,7 @@ class FileSnapshot:
 class ScanReport:
     items: List[FileSnapshot]
     skipped_unsupported: int
+    root: Optional[Path] = None
 
 
 def _fingerprint(path: Path) -> FileSnapshot:
@@ -64,6 +65,7 @@ def scan_directory(root: Path) -> ScanReport:
     root = Path(root)
     if not root.is_dir() or root.is_symlink():
         raise ValueError("scan root must be a directory, not a symlink")
+    root = root.absolute()
     items = []
     skipped_unsupported = 0
     def raise_walk_error(error):
@@ -81,4 +83,4 @@ def scan_directory(root: Path) -> ScanReport:
                 skipped_unsupported += 1
                 continue
             items.append(_fingerprint(path))
-    return ScanReport(items, skipped_unsupported)
+    return ScanReport(items, skipped_unsupported, root)
