@@ -7,6 +7,23 @@ from paperhub.store import open_store
 
 
 class IndexerTests(unittest.TestCase):
+    def test_same_size_rewrite_with_restored_mtime_is_retried(self):
+        import os
+        from paperhub.indexer import apply_scan
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root / "paper.pdf"
+            target.write_bytes(b"old")
+            report = scan_directory(root)
+            before = target.stat()
+            target.write_bytes(b"new")
+            os.utime(target, ns=(before.st_atime_ns, before.st_mtime_ns))
+            with open_store(root / "index.sqlite3") as db:
+                result = apply_scan(db, report)
+                self.assertEqual(result.retry, 1)
+                self.assertEqual(db.execute("SELECT COUNT(*) FROM asset").fetchone()[0], 0)
+
     def _apply_scan(self):
         try:
             from paperhub.indexer import apply_scan
