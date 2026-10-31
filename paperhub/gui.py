@@ -71,7 +71,7 @@ class MainWindow(QMainWindow):
         self.status_label = QLabel("请选择资料目录和索引文件，然后手动扫描。")
         layout.addWidget(self.status_label)
         self.table = QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels(["路径", "状态", "字节数", "MD5", "SHA-256"])
+        self.table.setHorizontalHeaderLabels(["路径", "状态", "字节数", "本次扫描 MD5", "本次扫描 SHA-256"])
         self.table.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self.table)
         self.setCentralWidget(panel)
@@ -122,7 +122,14 @@ class MainWindow(QMainWindow):
         self.table.setUpdatesEnabled(False)
         self.table.setRowCount(len(report.items))
         for row, item in enumerate(report.items):
-            values = (str(item.path), item.status, str(item.size or 0), item.md5 or "", item.sha256 or "")
+            path = str(item.path)
+            if path in result.conflict_paths:
+                state = "冲突：索引保留旧摘要"
+            elif path in result.retry_paths:
+                state = "待重试：未入库"
+            else:
+                state = "已索引"
+            values = (path, state, str(item.size or 0), item.md5 or "", item.sha256 or "")
             for column, value in enumerate(values):
                 self.table.setItem(row, column, QTableWidgetItem(value))
         self.table.setUpdatesEnabled(True)
