@@ -1,7 +1,9 @@
 import tempfile
 import time
+import threading
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 try:
     from PySide6.QtWidgets import QApplication
@@ -64,3 +66,41 @@ class GuiTests(unittest.TestCase):
             self.assertIn("错误", window.status_label.text())
             self.assertFalse(database.exists())
             window.close()
+
+    def test_close_waits_for_running_scan_thread(self):
+        from paperhub.indexer import IndexResult
+        from paperhub.scan import ScanReport
+
+        with tempfile.TemporaryDirectory() as directory:
+            started = threading.Event()
+            release = threading.Event()
+
+            def slow_scan(*_args):
+                started.set()
+                release.wait(3)
+                return ScanReport([], 0), IndexResult()
+
+            window = self._window()
+            window.library_edit.setText(directory)
+            window.database_edit.setText(str(Path(directory) / "index.sqlite3"))
+            window.show()
+            try:
+                with patch("paperhub.gui.run_scan", side_effect=slow_scan):
+                    window.scan_button.click()
+                    deadline = time.monotonic() + 3
+                    while not started.is_set() and time.monotonic() < deadline:
+                        self.app.processEvents()
+                        time.sleep(0.01)
+                    self.assertTrue(started.is_set())
+                    window.close()
+                    stayed_open = window.isVisible()
+                    release.set()
+                    while not window.scan_button.isEnabled() and time.monotonic() < deadline:
+                        self.app.processEvents()
+                        time.sleep(0.01)
+                self.assertTrue(window.scan_button.isEnabled())
+                self.assertTrue(stayed_open)
+                window.close()
+                self.assertFalse(window.isVisible())
+            finally:
+                release.set()
