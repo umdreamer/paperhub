@@ -9,6 +9,25 @@ from paperhub.store import open_store
 
 
 class AppControllerTests(unittest.TestCase):
+    def test_different_content_reappearing_is_conflict_not_missing(self):
+        from paperhub.app import run_scan
+
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            library = base / "library"
+            library.mkdir()
+            target = library / "paper.pdf"
+            target.write_bytes(b"old")
+            database = base / "index.sqlite3"
+            run_scan(library, database)
+            target.rename(base / "retained.pdf")
+            run_scan(library, database)
+            target.write_bytes(b"new content")
+            _, result = run_scan(library, database)
+            self.assertEqual((result.conflicts, result.missing), (1, 0))
+            with open_store(database) as db:
+                self.assertEqual(db.execute("SELECT status FROM asset").fetchone()[0], "conflict")
+
     def test_module_help_explains_manual_scan(self):
         result = subprocess.run(
             [sys.executable, "-m", "paperhub", "--help"],
