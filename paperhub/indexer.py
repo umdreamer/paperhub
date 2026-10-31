@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 import stat
+from pathlib import Path
 
 from paperhub.scan import ScanReport
 from paperhub.store import add_asset
@@ -13,11 +14,13 @@ class IndexResult:
     unchanged: int = 0
     conflicts: int = 0
     retry: int = 0
+    missing: int = 0
 
 
 def apply_scan(db, report: ScanReport) -> IndexResult:
     """Add stable paths; keep old hashes if a known path has changed."""
     added = unchanged = conflicts = retry = 0
+    seen_paths = {str(item.path) for item in report.items}
     with db:
         for item in report.items:
             if item.status != "stable":
@@ -42,6 +45,18 @@ def apply_scan(db, report: ScanReport) -> IndexResult:
                 added += 1
             elif previous == current:
                 unchanged += 1
+                db.execute("UPDATE asset SET status = 'present' WHERE path = ?", (str(item.path),))
             else:
                 conflicts += 1
-    return IndexResult(added, unchanged, conflicts, retry)
+        missing = 0
+        if report.root is not None:
+            for path, status in db.execute("SELECT path, status FROM asset").fetchall():
+                file_path = Path(path)
+                if not file_path.is_relative_to(report.root):
+                    continue
+                if path not in seen_paths and not file_path.exists() and status != "missing":
+                    db.execute("UPDATE asset SET status = 'missing' WHERE path = ?", (path,))
+                    status = "missing"
+                if status == "missing":
+                    missing += 1
+    return IndexResult(added, unchanged, conflicts, retry, missing)
