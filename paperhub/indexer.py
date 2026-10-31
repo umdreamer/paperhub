@@ -57,6 +57,7 @@ def apply_scan(db, report: ScanReport) -> IndexResult:
             else:
                 conflicts += 1
                 conflict_paths.append(str(item.path))
+                db.execute("UPDATE asset SET status = 'conflict' WHERE path = ?", (str(item.path),))
         missing = 0
         if report.root is not None:
             for path, status in db.execute("SELECT path, status FROM asset").fetchall():
