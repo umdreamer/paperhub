@@ -39,8 +39,8 @@ def apply_scan(db, report: ScanReport) -> IndexResult:
                 retry_paths.append(str(item.path))
                 continue
             if not stat.S_ISREG(current_stat.st_mode) or (
-                current_stat.st_size, current_stat.st_mtime_ns, current_stat.st_ino, current_stat.st_dev
-            ) != (item.size, item.mtime_ns, item.inode, item.device):
+                current_stat.st_size, current_stat.st_mtime_ns, current_stat.st_ino, current_stat.st_dev, current_stat.st_ctime_ns
+            ) != (item.size, item.mtime_ns, item.inode, item.device, item.ctime_ns):
                 retry += 1
                 retry_paths.append(str(item.path))
                 continue
