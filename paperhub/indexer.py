@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 import stat
 from pathlib import Path
+from typing import Tuple
 
 from paperhub.scan import ScanReport
 from paperhub.store import add_asset
@@ -15,26 +16,33 @@ class IndexResult:
     conflicts: int = 0
     retry: int = 0
     missing: int = 0
+    conflict_paths: Tuple[str, ...] = ()
+    retry_paths: Tuple[str, ...] = ()
 
 
 def apply_scan(db, report: ScanReport) -> IndexResult:
     """Add stable paths; keep old hashes if a known path has changed."""
     added = unchanged = conflicts = retry = 0
     seen_paths = {str(item.path) for item in report.items}
+    conflict_paths = []
+    retry_paths = []
     with db:
         for item in report.items:
             if item.status != "stable":
                 retry += 1
+                retry_paths.append(str(item.path))
                 continue
             try:
                 current_stat = item.path.lstat()
             except OSError:
                 retry += 1
+                retry_paths.append(str(item.path))
                 continue
             if not stat.S_ISREG(current_stat.st_mode) or (
                 current_stat.st_size, current_stat.st_mtime_ns, current_stat.st_ino, current_stat.st_dev
             ) != (item.size, item.mtime_ns, item.inode, item.device):
                 retry += 1
+                retry_paths.append(str(item.path))
                 continue
             previous = db.execute(
                 "SELECT size, md5, sha256 FROM asset WHERE path = ?", (str(item.path),)
@@ -48,6 +56,7 @@ def apply_scan(db, report: ScanReport) -> IndexResult:
                 db.execute("UPDATE asset SET status = 'present' WHERE path = ?", (str(item.path),))
             else:
                 conflicts += 1
+                conflict_paths.append(str(item.path))
         missing = 0
         if report.root is not None:
             for path, status in db.execute("SELECT path, status FROM asset").fetchall():
@@ -59,4 +68,4 @@ def apply_scan(db, report: ScanReport) -> IndexResult:
                     status = "missing"
                 if status == "missing":
                     missing += 1
-    return IndexResult(added, unchanged, conflicts, retry, missing)
+    return IndexResult(added, unchanged, conflicts, retry, missing, tuple(conflict_paths), tuple(retry_paths))
