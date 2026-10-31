@@ -48,6 +48,15 @@ class AppControllerTests(unittest.TestCase):
                 run_scan(Path(directory) / "missing", database)
             self.assertFalse(database.exists())
 
+    def test_blank_root_does_not_scan_current_directory(self):
+        run_scan = self._run_scan()
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "index.sqlite3"
+            for blank in ("", "   "):
+                with self.assertRaises(ValueError):
+                    run_scan(blank, database)
+            self.assertFalse(database.exists())
+
 
 if __name__ == "__main__":
     unittest.main()
